@@ -1,0 +1,1881 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vertrouwensmeter v3.0</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --font-display: 'DM Serif Display', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+
+  /* Semantic palette */
+  --trust-high:   #16a34a;
+  --trust-mid:    #ca8a04;
+  --trust-low:    #dc2626;
+
+  --bg-high:      #fffbeb;
+  --bg-mid:       #fafaf8;
+  --bg-low:       #f1f3f8;
+
+  --accent:       #2563eb;
+  --accent-light: #dbeafe;
+  --accent-dark:  #1d4ed8;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* UI neutrals */
+  --border:       rgba(0,0,0,0.10);
+  --border-strong:rgba(0,0,0,0.18);
+  --surface:      rgba(255,255,255,0.80);
+  --surface-2:    rgba(0,0,0,0.04);
+  --text-primary:   #1a1a1a;
+  --text-secondary: #555;
+  --text-muted:     #999;
+}
+
+html { font-size: 16px; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg-mid);
+  color: var(--text-primary);
+  min-height: 100vh;
+  transition: background 1.2s ease;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.app-header {
+  padding: 18px 24px 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(8px);
+  transition: background 0.8s;
+}
+.app-title {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+}
+.app-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   LAYOUT SHELL
+   ============================================================ */
+.app-body {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 0;
+  min-height: calc(100vh - 58px);
+}
+
+/* LEFT: tabs + content */
+.content-pane {
+  padding: 20px 22px;
+  overflow-y: auto;
+}
+
+/* RIGHT: living office scene */
+.scene-pane {
+  border-left: 0.5px solid var(--border);
+  position: sticky;
+  top: 58px;
+  height: calc(100vh - 58px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: background 1.2s ease;
+}
+
+/* ============================================================
+   NAVIGATION TABS
+   ============================================================ */
+.tab-nav {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 20px;
+  border-bottom: 0.5px solid var(--border);
+  padding-bottom: 0;
+}
+.tab-btn {
+  padding: 7px 14px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.tab-btn:hover { color: var(--text-primary); }
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 500;
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ============================================================
+   FORM ELEMENTS
+   ============================================================ */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  padding: 8px 11px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  border: 0.5px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: white;
+  color: var(--text-primary);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-group input:focus,
+.form-group select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+.form-group input:disabled { opacity: 0.4; cursor: not-allowed; background: var(--surface-2); }
+
+/* ============================================================
+   SLIDER
+   ============================================================ */
+.slider-block { margin-bottom: 14px; }
+.progress-wrapper {
+  margin-bottom: 20px;
+}
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.progress-bar-bg {
+  background: var(--border);
+  border-radius: 99px;
+  height: 8px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width 0.3s ease;
+}
+.dim-block {
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 16px 18px 10px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+}
+.dim-block-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.dim-abi-tag {
+  font-size: 11px;
+  background: var(--accent-light);
+  color: var(--accent);
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-weight: 600;
+  letter-spacing: .03em;
+}
+.dim-avg-display {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.dim-avg-display strong { color: var(--accent); font-size: 15px; }
+.q-num { font-size: 13px; color: var(--text-2); font-style: italic; }
+.slider-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.dim-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--accent-light);
+  color: #1e3a8a;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+.slider-question {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+  max-width: 85%;
+  line-height: 1.4;
+}
+.slider-val {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--accent);
+  min-width: 20px;
+  text-align: right;
+}
+input[type=range].vm-slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type=range].vm-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  padding: 9px 18px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 0.5px solid;
+  transition: all 0.15s;
+}
+.btn-primary { background: var(--accent); color: white; border-color: var(--accent-dark); }
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-secondary { background: transparent; color: var(--text-primary); border-color: var(--border-strong); }
+.btn-secondary:hover { background: var(--surface-2); }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+.card {
+  background: white;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.card-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.metric-card {
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 11px 13px;
+}
+.metric-label { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+.metric-value { font-size: 22px; font-weight: 500; }
+.metric-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+.c-green { color: var(--trust-high); }
+.c-amber { color: var(--trust-mid); }
+.c-red   { color: var(--trust-low); }
+.c-blue  { color: var(--accent); }
+
+/* ============================================================
+   BADGE / STATUS
+   ============================================================ */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.badge-green { background: #dcfce7; color: #14532d; }
+.badge-amber { background: #fef9c3; color: #713f12; }
+.badge-red   { background: #fee2e2; color: #7f1d1d; }
+.badge-blue  { background: var(--accent-light); color: #1e3a8a; }
+
+.info-box {
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.5;
+  border: 0.5px solid;
+  margin-bottom: 14px;
+}
+.info-blue   { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+.info-green  { background: #f0fdf4; border-color: #bbf7d0; color: #14532d; }
+.info-amber  { background: #fffbeb; border-color: #fde68a; color: #78350f; }
+
+.toast {
+  display: none;
+  padding: 10px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  margin-top: 10px;
+}
+.toast-green { background: #f0fdf4; color: #14532d; border: 0.5px solid #bbf7d0; }
+.toast-blue  { background: #eff6ff; color: #1e3a8a;  border: 0.5px solid #bfdbfe; }
+
+/* ============================================================
+   SECTION LABEL
+   ============================================================ */
+.sec-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+/* ============================================================
+   TABLE
+   ============================================================ */
+.resp-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+.resp-table th {
+  font-size: 11px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--text-muted);
+  padding: 6px 8px; text-align: left;
+  border-bottom: 0.5px solid var(--border);
+}
+.resp-table td { padding: 8px; border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+.resp-table tr:last-child td { border-bottom: none; }
+.resp-table tr:hover td { background: var(--surface-2); }
+
+/* ============================================================
+   TOGGLE SWITCH
+   ============================================================ */
+.toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 13px;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+}
+.toggle-label strong { font-size: 13px; font-weight: 500; display: block; }
+.toggle-label span   { font-size: 12px; color: var(--text-secondary); }
+.toggle-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: var(--border-strong); border-radius: 22px;
+  transition: background 0.25s;
+}
+.toggle-slider::before {
+  content: ''; position: absolute;
+  width: 16px; height: 16px; left: 3px; top: 3px;
+  background: white; border-radius: 50%; transition: transform 0.25s;
+}
+.toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+.toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+/* ============================================================
+   EMAIL LIST
+   ============================================================ */
+.email-list { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+.email-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 12px;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.email-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent-light); color: #1e3a8a;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 500; flex-shrink: 0;
+}
+.email-info { flex: 1; min-width: 0; }
+.email-name { font-weight: 500; font-size: 13px; }
+.email-addr { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.email-del  { cursor: pointer; color: var(--text-muted); font-size: 14px; padding: 2px 6px; border-radius: 4px; background: transparent; border: none; font-family: inherit; }
+.email-del:hover { background: #fee2e2; color: var(--trust-low); }
+
+.add-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.add-row input {
+  flex: 1; padding: 7px 10px; font-size: 13px;
+  font-family: var(--font-body);
+  border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: white; color: var(--text-primary);
+}
+.add-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+
+/* ============================================================
+   LINK BOX
+   ============================================================ */
+.link-box {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-family: monospace;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+.link-box span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.copy-btn {
+  padding: 4px 10px; font-size: 11px;
+  border: 0.5px solid var(--border-strong);
+  border-radius: 4px; cursor: pointer;
+  background: white; color: var(--text-primary);
+  font-family: var(--font-body); white-space: nowrap;
+}
+
+/* ============================================================
+   EMAIL PREVIEW
+   ============================================================ */
+.preview-wrap { border: 0.5px solid var(--border); border-radius: var(--radius-md); overflow: hidden; margin-bottom: 14px; }
+.preview-header { padding: 10px 14px; background: var(--surface-2); border-bottom: 0.5px solid var(--border); font-size: 12px; color: var(--text-secondary); line-height: 1.8; }
+.preview-header strong { color: var(--text-primary); font-weight: 500; }
+.preview-body { padding: 14px; font-size: 13px; line-height: 1.7; }
+.preview-body p { margin-bottom: 10px; }
+.preview-cta {
+  display: inline-block; padding: 9px 20px;
+  background: var(--accent); color: white;
+  border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+  text-decoration: none; margin: 4px 0 10px;
+}
+.preview-footer { padding: 9px 14px; border-top: 0.5px solid var(--border); font-size: 11px; color: var(--text-muted); }
+
+/* ============================================================
+   PROGRESS BAR
+   ============================================================ */
+.prog-track { height: 5px; background: var(--surface-2); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.prog-fill  { height: 100%; border-radius: 3px; background: var(--accent); transition: width 0.4s; }
+
+/* ============================================================
+   ABI BARS
+   ============================================================ */
+.abi-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; font-size: 12px; }
+.abi-label { min-width: 80px; color: var(--text-secondary); }
+.abi-track { flex: 1; height: 5px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.abi-fill  { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+.abi-pct   { min-width: 34px; text-align: right; font-size: 11px; color: var(--text-muted); }
+
+/* ============================================================
+   EXPORT CARDS
+   ============================================================ */
+.export-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 13px 14px;
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-bottom: 9px;
+}
+.export-card:hover { background: var(--surface-2); }
+.export-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.ei-red   { background: #fee2e2; color: #991b1b; }
+.ei-green { background: #dcfce7; color: #14532d; }
+.ei-blue  { background: var(--accent-light); color: #1e3a8a; }
+.export-text strong { font-size: 13px; font-weight: 500; display: block; }
+.export-text span   { font-size: 12px; color: var(--text-secondary); }
+
+.img-prompt-card {
+  padding: 11px 13px;
+  border: 0.5px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  margin-bottom: 9px;
+}
+.img-prompt-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 5px; }
+.img-prompt-text  { font-size: 12px; color: var(--text-secondary); font-style: italic; line-height: 1.5; }
+
+/* ============================================================
+   LIVING OFFICE SCENE PANEL
+   ============================================================ */
+.scene-pane { background: #f5f0e8; }
+
+.scene-header {
+  padding: 12px 14px 8px;
+  border-bottom: 0.5px solid var(--border);
+  background: rgba(255,255,255,0.6);
+  backdrop-filter: blur(4px);
+}
+.scene-header-title { font-family: var(--font-display); font-size: 15px; }
+.scene-score-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.scene-score-row label { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+input[type=range]#scene-slider {
+  flex: 1; height: 5px; -webkit-appearance: none;
+  border-radius: 3px; outline: none; cursor: pointer;
+  background: linear-gradient(to right, #dc2626 0%, #f59e0b 50%, #16a34a 100%);
+}
+input[type=range]#scene-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 19px; height: 19px;
+  border-radius: 50%; background: white;
+  border: 2px solid #666; cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+.scene-score-badge {
+  font-size: 15px; font-weight: 600;
+  padding: 1px 8px; border-radius: 6px;
+  min-width: 42px; text-align: center;
+  transition: all 0.4s;
+}
+
+.scene-canvas-wrap { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#office-svg { width: 100%; height: 100%; display: block; }
+
+.scene-caption {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-secondary);
+  border-top: 0.5px solid var(--border);
+  background: rgba(255,255,255,0.5);
+  min-height: 36px;
+  transition: color 0.5s;
+  line-height: 1.4;
+}
+
+/* ============================================================
+   DIMENSION BAR
+   ============================================================ */
+.dim-bar-row { margin-bottom: 10px; }
+.dim-bar-header { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+.dim-bar-label { color: var(--text-secondary); }
+.dim-bar-val   { font-weight: 500; }
+.dim-bar-track { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.dim-bar-fill  { height: 100%; border-radius: 3px; transition: width 0.5s; }
+
+/* ============================================================
+   ATMOSPHERE BANNER
+   ============================================================ */
+.atm-banner {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 13px; border-radius: var(--radius-sm);
+  border: 0.5px solid; font-size: 13px;
+  margin-bottom: 14px; transition: all 0.5s;
+}
+.atm-high  { background: #f0fdf4; border-color: #86efac; color: #14532d; }
+.atm-mid   { background: #fefce8; border-color: #fde047; color: #713f12; }
+.atm-low   { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
+
+/* ============================================================
+   STATS ROW
+   ============================================================ */
+.stats-3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes bob     { 0%,100%{transform:translateY(0)}  50%{transform:translateY(-3px)} }
+@keyframes slump   { 0%,100%{transform:rotate(0deg)}   50%{transform:rotate(3deg)} }
+@keyframes sway    { 0%,100%{transform:rotate(-2deg)}  50%{transform:rotate(2deg)} }
+@keyframes scan    { 0%,100%{transform:translateX(0) scaleX(1)} 50%{transform:translateX(5px) scaleX(1.04)} }
+@keyframes flicker { 0%,100%{opacity:1} 92%{opacity:1} 93%{opacity:0.4} 95%{opacity:1} 97%{opacity:0.5} 99%{opacity:1} }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 900px) {
+  .app-body { grid-template-columns: 1fr; }
+  .scene-pane { position: static; height: 340px; border-left: none; border-top: 0.5px solid var(--border); }
+  .metric-row { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
+<header class="app-header">
+  <span class="app-title">De Vertrouwensmeter</span>
+  <span class="app-sub">ABI-model · Mayer, Davis &amp; Schoorman (1995) · 7S-framework</span>
+</header>
+
+<!-- ============================================================
+     APP BODY
+     ============================================================ -->
+<div class="app-body">
+
+  <!-- LEFT: TABS -->
+  <main class="content-pane">
+    <nav class="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('invullen',this)">Invullen</button>
+      <button class="tab-btn" onclick="switchTab('dashboard',this)">Dashboard</button>
+      <button class="tab-btn" onclick="switchTab('trend',this)">Trendlijn</button>
+      <button class="tab-btn" onclick="switchTab('uitnodigen',this)">Uitnodigen</button>
+      <button class="tab-btn" onclick="switchTab('emailpreview',this)">E-mail preview</button>
+      <button class="tab-btn" onclick="switchTab('responsstatus',this)">Responsstatus</button>
+      <button class="tab-btn" onclick="switchTab('export',this)">Export &amp; AI</button>
+    </nav>
+
+    <!-- ── TAB: INVULLEN ── -->
+    <section id="tab-invullen" class="tab-panel active">
+      <div class="sec-label">Invulmodus</div>
+
+      <div class="toggle-row">
+        <div class="toggle-label">
+          <strong>Anonieme modus</strong>
+          <span>Naam en functieniveau worden niet opgeslagen</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="anon-toggle" onchange="toggleAnon()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div id="anon-banner" class="info-box info-blue" style="display:none">
+        <strong>Anonieme modus actief</strong> — naam en functieniveau worden niet geregistreerd. Alleen afdeling en periode worden opgeslagen voor groepsanalyse.
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Naam</label>
+          <input type="text" id="inp-naam" placeholder="Jouw naam">
+        </div>
+        <div class="form-group">
+          <label>Functieniveau</label>
+          <select id="inp-niveau">
+            <option>Medewerker</option><option>Teamlead</option>
+            <option>Manager</option><option>Directie</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Afdeling</label>
+          <select id="inp-afd">
+            <option>Management</option><option>Operations</option>
+            <option>HR</option><option>Sales</option>
+            <option>IT</option><option>Finance</option><option>Overig</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Meetperiode</label>
+          <select id="inp-periode">
+            <option>Q1 2026</option><option>Q2 2026</option>
+            <option>Q3 2026</option><option>Q4 2026</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- VOORTGANGSINDICATOR -->
+      <div class="progress-wrapper" id="form-progress-wrap">
+        <div class="progress-label">
+          <span>Voortgang</span>
+          <span id="progress-text">0 / 12 vragen ingevuld</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-bar-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- DIMENSIE: TOEKOMST / STRATEGIE (Ability) -->
+      <div class="dim-block">
+        <div class="dim-block-header">
+          <span class="dim-tag">Toekomst · Strategie</span>
+          <span class="dim-abi-tag">Ability (ABI)</span>
+          <span class="dim-avg-display">Gem: <strong id="davg-s">3.0</strong></span>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">S1 &nbsp;"Ik heb vertrouwen in het succes van de organisatie over 5 jaar."</span>
+            <span class="slider-val" id="sv-s1">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'s',0)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">S2 &nbsp;"De organisatie heeft een duidelijke en geloofwaardige strategie."</span>
+            <span class="slider-val" id="sv-s2">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'s',1)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">S3 &nbsp;"De beslissingen die worden genomen passen bij de langetermijndoelen."</span>
+            <span class="slider-val" id="sv-s3">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'s',2)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+      </div>
+
+      <!-- DIMENSIE: SYSTEMEN / INTEGRITY -->
+      <div class="dim-block">
+        <div class="dim-block-header">
+          <span class="dim-tag">Systemen · Integrity</span>
+          <span class="dim-abi-tag">Integrity (ABI)</span>
+          <span class="dim-avg-display">Gem: <strong id="davg-y">3.0</strong></span>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">I1 &nbsp;"Onze interne procedures zijn eerlijk en transparant."</span>
+            <span class="slider-val" id="sv-y1">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'y',0)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">I2 &nbsp;"Afspraken en regels worden consequent nageleefd door iedereen."</span>
+            <span class="slider-val" id="sv-y2">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'y',1)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">I3 &nbsp;"Wanneer iets misgaat, wordt dat open en eerlijk besproken."</span>
+            <span class="slider-val" id="sv-y3">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'y',2)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+      </div>
+
+      <!-- DIMENSIE: MANAGEMENT / ABILITY + BENEVOLENCE -->
+      <div class="dim-block">
+        <div class="dim-block-header">
+          <span class="dim-tag">Management · Ability</span>
+          <span class="dim-abi-tag">Ability + Benevolence (ABI)</span>
+          <span class="dim-avg-display">Gem: <strong id="davg-m">3.0</strong></span>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">M1 &nbsp;"De leiding is oprecht over de staat van de organisatie."</span>
+            <span class="slider-val" id="sv-m1">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'m',0)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">M2 &nbsp;"Leidinggevenden hebben de kennis en expertise om goede beslissingen te nemen."</span>
+            <span class="slider-val" id="sv-m2">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'m',1)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">M3 &nbsp;"Mijn leidinggevende heeft oprecht oog voor mijn welzijn."</span>
+            <span class="slider-val" id="sv-m3">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'m',2)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+      </div>
+
+      <!-- DIMENSIE: MEDEWERKERS / BENEVOLENCE -->
+      <div class="dim-block">
+        <div class="dim-block-header">
+          <span class="dim-tag">Medewerkers · Benevolence</span>
+          <span class="dim-abi-tag">Benevolence (ABI)</span>
+          <span class="dim-avg-display">Gem: <strong id="davg-w">3.0</strong></span>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">B1 &nbsp;"Mijn collega's steunen mij als het werk zwaar wordt."</span>
+            <span class="slider-val" id="sv-w1">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'w',0)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">B2 &nbsp;"Ik voel me veilig om mijn mening te geven, ook als die afwijkt."</span>
+            <span class="slider-val" id="sv-w2">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'w',1)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+        <div class="slider-block">
+          <div class="slider-block-header">
+            <span class="slider-question q-num">B3 &nbsp;"Er is een cultuur van wederzijds respect en samenwerking."</span>
+            <span class="slider-val" id="sv-w3">3</span>
+          </div>
+          <input type="range" class="vm-slider" min="1" max="5" step="1" value="3" oninput="onSlider(this,'w',2)">
+          <div class="slider-labels"><span>Helemaal oneens</span><span>Helemaal eens</span></div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveResponse()">Meting opslaan</button>
+        <button class="btn btn-secondary" onclick="switchTab('dashboard', document.querySelectorAll('.tab-btn')[1])">Bekijk dashboard</button>
+      </div>
+      <div class="toast toast-green" id="toast-save"></div>
+    </section>
+
+    <!-- ── TAB: DASHBOARD ── -->
+    <section id="tab-dashboard" class="tab-panel">
+      <div id="atm-banner" class="atm-banner atm-mid">
+        <span id="atm-icon">⚡</span>
+        <span id="atm-text">Neutraal vertrouwensklimaat — gemiddelde score 3.0/5</span>
+      </div>
+
+      <div class="metric-row">
+        <div class="metric-card">
+          <div class="metric-label">Gem. score</div>
+          <div class="metric-value c-amber" id="m-avg">3.0</div>
+          <div class="metric-sub">van 5.0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Respondenten</div>
+          <div class="metric-value c-blue" id="m-count">6</div>
+          <div class="metric-sub">ingevuld</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Sterkste dim.</div>
+          <div class="metric-value c-green" id="m-strong">Medewerkers</div>
+          <div class="metric-sub" id="m-strong-sub">3.3</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Aandachtspunt</div>
+          <div class="metric-value c-red" id="m-weak">Systemen</div>
+          <div class="metric-sub" id="m-weak-sub">2.7</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Scores per dimensie</div>
+        <div id="dim-bars-container"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">ABI-verdeling (Mayer et al., 1995)</div>
+        <div id="abi-bars-container"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Scores per afdeling</div>
+        <div style="position:relative;height:200px"><canvas id="chart-dept"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Respondenten</div>
+        <div style="overflow-x:auto">
+          <table class="resp-table">
+            <thead>
+              <tr>
+                <th style="width:22%">Naam</th>
+                <th style="width:16%">Afdeling</th>
+                <th style="width:16%">Periode</th>
+                <th style="width:12%">Gem.</th>
+                <th style="width:14%">Sfeer</th>
+              </tr>
+            </thead>
+            <tbody id="resp-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── TAB: TRENDLIJN ── -->
+    <section id="tab-trend" class="tab-panel">
+      <div class="sec-label">Historische trendlijn per dimensie</div>
+      <div id="trend-legend" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px;font-size:12px;color:var(--text-secondary)"></div>
+      <div class="card">
+        <div style="position:relative;height:260px"><canvas id="chart-trend"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">ABI-componenten over tijd</div>
+        <div style="position:relative;height:200px"><canvas id="chart-abi-trend"></canvas></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="aiAnalyseTrend()">Analyseer trendlijn met AI ↗</button>
+      </div>
+    </section>
+
+    <!-- ── TAB: UITNODIGEN ── -->
+    <section id="tab-uitnodigen" class="tab-panel">
+      <div class="sec-label">Organisatie instellen</div>
+      <div class="form-grid">
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Organisatienaam</label>
+          <input type="text" id="org-naam" value="Jouw organisatie" oninput="updatePreview()">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Afzendernaam</label>
+          <input type="text" id="org-afzender" value="HR-afdeling" oninput="updatePreview()">
+        </div>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label">
+          <strong>Anoniem invullen verplichten</strong>
+          <span>Respondenten kunnen geen naam invullen</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="force-anon" onchange="updatePreview()">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label">
+          <strong>Herinnering na 3 dagen</strong>
+          <span>Automatisch naar niet-ingevulde adressen</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="reminder-on" checked>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div style="height:12px"></div>
+      <div class="sec-label">Ontvangers</div>
+      <div class="add-row">
+        <input type="text" id="new-name" placeholder="Naam">
+        <input type="text" id="new-email" placeholder="e-mailadres">
+        <button class="btn btn-primary" onclick="addEmail()">Toevoegen</button>
+      </div>
+      <div class="email-list" id="email-list-uitnodig"></div>
+
+      <div style="height:10px"></div>
+      <div class="sec-label">Deellink</div>
+      <div class="info-box info-amber">Kopieer en stuur via Teams, Slack of intranet.</div>
+      <div class="link-box">
+        <span id="share-link">https://vertrouwensmeter.app/invullen?org=jouw-org&anon=0&periode=Q1-2026</span>
+        <button class="copy-btn" onclick="copyLink()">Kopieer</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="sendAllEmails()">Verstuur uitnodigingen</button>
+        <button class="btn btn-secondary" onclick="switchTab('emailpreview',document.querySelectorAll('.tab-btn')[4])">Bekijk preview</button>
+      </div>
+      <div class="toast toast-green" id="toast-send"></div>
+    </section>
+
+    <!-- ── TAB: E-MAIL PREVIEW ── -->
+    <section id="tab-emailpreview" class="tab-panel">
+      <div class="sec-label">Uitnodigingsmail</div>
+      <div class="info-box info-blue">Pas organisatienaam aan via Uitnodigen. De preview werkt live mee.</div>
+      <div class="preview-wrap">
+        <div class="preview-header">
+          <div><strong>Van:</strong> <span id="pv-from">HR-afdeling</span> &lt;noreply@vertrouwensmeter.app&gt;</div>
+          <div><strong>Onderwerp:</strong> Jouw mening telt — Vertrouwensmeter <span id="pv-periode">Q1 2026</span></div>
+        </div>
+        <div class="preview-body">
+          <p>Beste collega,</p>
+          <p><strong id="pv-org">Jouw organisatie</strong> voert dit kwartaal een vertrouwensonderzoek uit. Het invullen duurt circa 2 minuten.</p>
+          <div id="pv-anon-note" class="info-box info-blue" style="display:none;margin:8px 0">Jouw antwoorden worden volledig anoniem verwerkt.</div>
+          <a class="preview-cta" href="#">Vertrouwensmeter invullen</a>
+          <p>Met vriendelijke groet,<br><strong id="pv-afzender">HR-afdeling</strong></p>
+        </div>
+        <div class="preview-footer">Je ontvangt deze mail via jouw organisatie. Afmelden? Klik <u>hier</u>.</div>
+      </div>
+
+      <div class="sec-label">Herinneringsmail (dag 3)</div>
+      <div class="preview-wrap">
+        <div class="preview-header"><strong>Onderwerp:</strong> Herinnering — Vertrouwensmeter staat nog open</div>
+        <div class="preview-body">
+          <p>Beste collega,</p>
+          <p>We zagen dat je de meting van <strong id="pv-org2">Jouw organisatie</strong> nog niet hebt ingevuld. Het duurt echt maar 2 minuten.</p>
+          <a class="preview-cta" href="#">Alsnog invullen</a>
+          <p>Met vriendelijke groet,<br><strong id="pv-afzender2">HR-afdeling</strong></p>
+        </div>
+        <div class="preview-footer">Geen herinneringen? Klik <u>hier</u>.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="aiEmailText()">Alternatieve tekst genereren ↗</button>
+      </div>
+    </section>
+
+    <!-- ── TAB: RESPONSSTATUS ── -->
+    <section id="tab-responsstatus" class="tab-panel">
+      <div class="sec-label">Overzicht</div>
+      <div class="stats-3">
+        <div class="metric-card">
+          <div class="metric-label">Uitgestuurd</div>
+          <div class="metric-value c-blue" id="st-total">0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Ingevuld</div>
+          <div class="metric-value c-green" id="st-done">0</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Responsrate</div>
+          <div class="metric-value c-amber" id="st-rate">0%</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Voortgang</div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:4px">
+          <span id="prog-label">0 van 0</span><span id="prog-pct">0%</span>
+        </div>
+        <div class="prog-track"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+      </div>
+      <div class="sec-label">Per ontvanger</div>
+      <div class="email-list" id="status-list"></div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="sendReminders()">Stuur herinnering naar openstaanden</button>
+        <button class="btn btn-secondary" onclick="aiResponseTips()">Tips voor hogere respons ↗</button>
+      </div>
+      <div class="toast toast-blue" id="toast-remind"></div>
+    </section>
+
+    <!-- ── TAB: EXPORT & AI ── -->
+    <section id="tab-export" class="tab-panel">
+      <div class="sec-label">Export</div>
+      <div class="export-card" onclick="exportCSV()">
+        <div class="export-icon ei-green">CSV</div>
+        <div class="export-text">
+          <strong>Exporteer als CSV</strong>
+          <span>Alle respondentdata, geschikt voor Excel of SPSS</span>
+        </div>
+      </div>
+      <div class="export-card" onclick="exportTXT()">
+        <div class="export-icon ei-red">TXT</div>
+        <div class="export-text">
+          <strong>Tekstrapport downloaden</strong>
+          <span>Samenvatting met scores, ABI-verdeling en sfeer</span>
+        </div>
+      </div>
+      <div class="export-card" onclick="aiFullReport()">
+        <div class="export-icon ei-blue">AI</div>
+        <div class="export-text">
+          <strong>Volledig AI-rapport genereren ↗</strong>
+          <span>Claude schrijft een managementrapport op basis van alle data</span>
+        </div>
+      </div>
+
+      <div style="height:14px"></div>
+      <div class="sec-label">AI-beeldprompts (sectie 4.1)</div>
+      <div class="img-prompt-card">
+        <div class="img-prompt-label" style="color:var(--trust-high)">Hoog vertrouwen</div>
+        <div class="img-prompt-text">"High-end modern office, bright natural sunlight, smiling faces, open collaborative spaces, plants and greenery, summer clothes, warm golden hour light, photorealistic, 8k."</div>
+      </div>
+      <div class="img-prompt-card">
+        <div class="img-prompt-label" style="color:var(--trust-mid)">Neutraal klimaat</div>
+        <div class="img-prompt-text">"Modern office interior, overcast daylight, neutral expressions, tidy but quiet workspace, subtle tension in body language, muted colors, cinematic, 4k."</div>
+      </div>
+      <div class="img-prompt-card">
+        <div class="img-prompt-label" style="color:var(--trust-low)">Laag vertrouwen</div>
+        <div class="img-prompt-text">"Grimmy dark office interior, storm clouds outside, flickering fluorescent lights, suspicious faces, cold blue tones, cinematic noir, 8k."</div>
+      </div>
+
+      <div style="height:14px"></div>
+      <div class="sec-label">Bronnen (APA 7)</div>
+      <div class="card" style="font-size:12px;line-height:1.8;color:var(--text-secondary)">
+        <p>Mayer, R. C., Davis, J. H., &amp; Schoorman, F. D. (1995). An integrative model of organizational trust. <em>Academy of Management Review</em>, <em>20</em>(3), 709–734.</p>
+        <p>Luhmann, N. (1979). <em>Trust and power</em>. Wiley.</p>
+        <p>Peters, T. J., &amp; Waterman, R. H. (1982). <em>In search of excellence</em>. Harper &amp; Row.</p>
+        <p>McAllister, D. J. (1995). Affect- and cognition-based trust as foundations for interpersonal cooperation. <em>Academy of Management Journal</em>, <em>38</em>(1), 24–59.</p>
+      </div>
+    </section>
+
+  </main><!-- /content-pane -->
+
+  <!-- RIGHT: LIVING OFFICE SCENE -->
+  <aside class="scene-pane" id="scene-pane">
+    <div class="scene-header">
+      <div class="scene-header-title">Trust atmosphere</div>
+      <div class="scene-score-row">
+        <label>Score</label>
+        <input type="range" id="scene-slider" min="1" max="5" step="0.1" value="3" oninput="updateScene(this.value)">
+        <span class="scene-score-badge" id="scene-badge">3.0</span>
+      </div>
+    </div>
+
+    <div class="scene-canvas-wrap">
+      <svg id="office-svg" viewBox="0 0 360 320" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+        <!-- WALL -->
+        <rect id="sv-wall" x="0" y="0" width="360" height="320" fill="#f5f0e8"/>
+        <!-- FLOOR -->
+        <rect id="sv-floor" x="0" y="240" width="360" height="80" fill="#d9c9a8"/>
+        <line x1="0" y1="240" x2="360" y2="240" stroke="#b8a882" stroke-width="1"/>
+
+        <!-- CEILING LIGHT -->
+        <rect id="sv-light" x="140" y="0" width="80" height="10" rx="2" fill="#e8e0cc"/>
+        <rect id="sv-glow"  x="132" y="8"  width="96" height="5"  rx="2" fill="#fff9e0" opacity="0.9"/>
+
+        <!-- WINDOW LEFT (small) -->
+        <rect x="18" y="30" width="70" height="62" rx="2" fill="#87ceeb" id="sv-wl"/>
+        <rect x="18" y="30" width="70" height="62" rx="2" fill="none" stroke="#8b7355" stroke-width="2"/>
+        <line x1="53" y1="30" x2="53" y2="92" stroke="#8b7355" stroke-width="1.5"/>
+        <line x1="18" y1="61" x2="88" y2="61" stroke="#8b7355" stroke-width="1.5"/>
+        <g id="sv-wl-weather"></g>
+
+        <!-- WINDOW RIGHT (big) -->
+        <rect x="258" y="24" width="88" height="80" rx="2" fill="#87ceeb" id="sv-wr"/>
+        <rect x="258" y="24" width="88" height="80" rx="2" fill="none" stroke="#8b7355" stroke-width="2"/>
+        <line x1="302" y1="24" x2="302" y2="104" stroke="#8b7355" stroke-width="1.5"/>
+        <line x1="258" y1="64" x2="346" y2="64" stroke="#8b7355" stroke-width="1.5"/>
+        <g id="sv-wr-weather"></g>
+
+        <!-- SUN -->
+        <g id="sv-sun" opacity="0">
+          <circle cx="302" cy="50" r="14" fill="#ffd700"/>
+          <line x1="302" y1="28" x2="302" y2="34" stroke="#ffd700" stroke-width="2" stroke-linecap="round"/>
+          <line x1="302" y1="66" x2="302" y2="72" stroke="#ffd700" stroke-width="2" stroke-linecap="round"/>
+          <line x1="280" y1="50" x2="286" y2="50" stroke="#ffd700" stroke-width="2" stroke-linecap="round"/>
+          <line x1="318" y1="50" x2="324" y2="50" stroke="#ffd700" stroke-width="2" stroke-linecap="round"/>
+          <line x1="286" y1="34" x2="290" y2="38" stroke="#ffd700" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="314" y1="62" x2="318" y2="66" stroke="#ffd700" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="318" y1="34" x2="314" y2="38" stroke="#ffd700" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="286" y1="62" x2="290" y2="66" stroke="#ffd700" stroke-width="1.5" stroke-linecap="round"/>
+        </g>
+
+        <!-- CLOUDS -->
+        <g id="sv-clouds" opacity="0">
+          <ellipse cx="40" cy="50" rx="18" ry="9" fill="#b0bec5"/>
+          <ellipse cx="54" cy="44" rx="14" ry="11" fill="#90a4ae"/>
+          <ellipse cx="66" cy="51" rx="12" ry="8" fill="#b0bec5"/>
+          <ellipse cx="276" cy="46" rx="16" ry="8" fill="#9eafc0"/>
+          <ellipse cx="290" cy="40" rx="14" ry="10" fill="#8fa4b8"/>
+          <ellipse cx="304" cy="46" rx="14" ry="8" fill="#9eafc0"/>
+        </g>
+
+        <!-- DESKS -->
+        <rect x="48"  y="194" width="80" height="42" rx="3" fill="#c8b48a" stroke="#a08060" stroke-width="0.8"/>
+        <rect x="140" y="194" width="80" height="42" rx="3" fill="#c8b48a" stroke="#a08060" stroke-width="0.8"/>
+        <rect x="240" y="194" width="70" height="42" rx="3" fill="#c8b48a" stroke="#a08060" stroke-width="0.8"/>
+
+        <!-- MONITORS -->
+        <rect id="sv-mon1" x="53"  y="184" width="52" height="14" rx="2" fill="#3a3a5a"/>
+        <rect id="sv-mon2" x="145" y="184" width="52" height="14" rx="2" fill="#3a3a5a"/>
+        <rect id="sv-mon3" x="244" y="184" width="46" height="14" rx="2" fill="#3a3a5a"/>
+
+        <!-- PLANT -->
+        <rect x="326" y="218" width="14" height="20" rx="2" fill="#8b6914"/>
+        <ellipse cx="333" cy="216" rx="11" ry="13" fill="#2d7a2d" id="sv-plant-main"/>
+        <ellipse cx="325" cy="220" rx="7"  rx2="7" ry="9" fill="#3a9a3a" id="sv-plant-l"/>
+        <ellipse cx="341" cy="219" rx="7"  ry="9" fill="#3a9a3a" id="sv-plant-r"/>
+
+        <!-- WORKER 1 -->
+        <g id="sv-w1" style="transform-origin:88px 193px">
+          <circle cx="88" cy="173" r="11" fill="#f4c08a"/>
+          <rect x="80" y="183" width="17" height="20" rx="3" fill="#3a7abd"/>
+          <rect x="66" y="196" width="16" height="5" rx="2" fill="#f4c08a"/>
+          <rect x="97" y="196" width="16" height="5" rx="2" fill="#f4c08a"/>
+          <circle cx="84" cy="170" r="1.5" fill="#5a3a1a"/>
+          <circle cx="92" cy="170" r="1.5" fill="#5a3a1a"/>
+          <path id="sv-w1m" d="M84 177 Q88 181 92 177" fill="none" stroke="#5a3a1a" stroke-width="1.2" stroke-linecap="round"/>
+        </g>
+
+        <!-- WORKER 2 -->
+        <g id="sv-w2" style="transform-origin:180px 193px">
+          <circle cx="180" cy="173" r="11" fill="#e8956a"/>
+          <rect x="172" y="183" width="17" height="20" rx="3" fill="#9b59b6"/>
+          <rect x="158" y="196" width="16" height="5" rx="2" fill="#e8956a"/>
+          <rect x="189" y="196" width="16" height="5" rx="2" fill="#e8956a"/>
+          <circle cx="176" cy="170" r="1.5" fill="#4a2a0a"/>
+          <circle cx="184" cy="170" r="1.5" fill="#4a2a0a"/>
+          <path id="sv-w2m" d="M176 177 Q180 181 184 177" fill="none" stroke="#4a2a0a" stroke-width="1.2" stroke-linecap="round"/>
+        </g>
+
+        <!-- WORKER 3 -->
+        <g id="sv-w3" style="transform-origin:275px 193px">
+          <circle cx="275" cy="173" r="11" fill="#f0b87a"/>
+          <rect x="267" y="183" width="17" height="20" rx="3" fill="#27ae60"/>
+          <rect x="253" y="196" width="16" height="5" rx="2" fill="#f0b87a"/>
+          <rect x="284" y="196" width="16" height="5" rx="2" fill="#f0b87a"/>
+          <circle cx="271" cy="170" r="1.5" fill="#4a2a0a"/>
+          <circle cx="279" cy="170" r="1.5" fill="#4a2a0a"/>
+          <path id="sv-w3m" d="M271 177 Q275 181 279 177" fill="none" stroke="#4a2a0a" stroke-width="1.2" stroke-linecap="round"/>
+        </g>
+
+        <!-- MANAGER -->
+        <g id="sv-mgr" style="transform-origin:140px 230px">
+          <circle cx="140" cy="216" r="12" fill="#f4d0a0"/>
+          <rect x="132" y="227" width="17" height="22" rx="3" fill="#2c3e50"/>
+          <rect x="132" y="229" width="4" height="14" fill="#e8c96a"/>
+          <rect x="118" y="229" width="12" height="5" rx="2" fill="#2c3e50"/>
+          <rect x="149" y="229" width="12" height="5" rx="2" fill="#2c3e50"/>
+          <rect x="133" y="248" width="6" height="10" rx="2" fill="#1a252f"/>
+          <rect x="141" y="248" width="6" height="10" rx="2" fill="#1a252f"/>
+          <circle cx="136" cy="213" r="1.5" fill="#4a3010"/>
+          <circle cx="144" cy="213" r="1.5" fill="#4a3010"/>
+          <path id="sv-mgrm" d="M136 220 Q140 224 144 220" fill="none" stroke="#4a3010" stroke-width="1.2" stroke-linecap="round"/>
+          <!-- clipboard -->
+          <rect id="sv-clip" x="152" y="230" width="10" height="13" rx="1" fill="#d4a044" stroke="#a07020" stroke-width="0.5" opacity="0.5"/>
+          <line x1="154" y1="234" x2="160" y2="234" stroke="#a07020" stroke-width="0.6"/>
+          <line x1="154" y1="237" x2="160" y2="237" stroke="#a07020" stroke-width="0.6"/>
+          <line x1="154" y1="240" x2="158" y2="240" stroke="#a07020" stroke-width="0.6"/>
+        </g>
+
+        <!-- RAIN PARTICLES (dynamic) -->
+        <g id="sv-rain"></g>
+      </svg>
+    </div>
+
+    <div class="scene-caption" id="scene-caption">
+      Stel de schuif in om de kantoorsfeer te zien.
+    </div>
+  </aside>
+
+</div><!-- /app-body -->
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script>
+// ── DATA ────────────────────────────────────────────────────────
+const DIMS   = ['s','y','m','w'];
+const DLABELS= ['Toekomst','Systemen','Management','Medewerkers'];
+const DCOLORS= ['#2563eb','#16a34a','#d97706','#9333ea'];
+
+let formScores = {s:[3,3,3], y:[3,3,3], m:[3,3,3], w:[3,3,3]};
+let anonMode   = false;
+
+let responders = [
+  // v4: scores are dimension averages (avg of 3 Likert items each)
+  {naam:'Anna B.',   afd:'HR',          periode:'Q1 2026', niveau:'Manager',    s:4.0, y:3.3, m:4.0, w:4.7},
+  {naam:'Tim R.',    afd:'IT',          periode:'Q1 2026', niveau:'Medewerker', s:2.7, y:2.3, m:3.0, w:3.7},
+  {naam:'Fatima K.', afd:'Management',  periode:'Q1 2026', niveau:'Directie',   s:4.7, y:4.0, m:4.7, w:4.0},
+  {naam:'Lars V.',   afd:'Sales',       periode:'Q1 2026', niveau:'Medewerker', s:2.0, y:1.7, m:2.3, w:2.7},
+  {naam:'Mia S.',    afd:'Operations',  periode:'Q4 2025', niveau:'Teamlead',   s:3.3, y:3.0, m:3.7, w:4.0},
+  {naam:'Daan P.',   afd:'Finance',     periode:'Q4 2025', niveau:'Medewerker', s:3.7, y:3.0, m:3.3, w:3.0},
+];
+
+let emailList = [
+  {name:'Anna Bakker',  email:'a.bakker@org.nl',  status:'sent', filled:true},
+  {name:'Tim Rovers',   email:'t.rovers@org.nl',  status:'sent', filled:false},
+  {name:'Fatima Karimi',email:'f.karimi@org.nl',  status:'sent', filled:true},
+  {name:'Lars Visser',  email:'l.visser@org.nl',  status:'pending',filled:false},
+];
+
+const TREND_HIST = {
+  'Q3 2024':{s:3.1,y:2.8,m:3.2,w:3.5},
+  'Q4 2024':{s:3.0,y:2.6,m:3.0,w:3.3},
+  'Q1 2025':{s:2.8,y:2.5,m:2.7,w:3.1},
+  'Q2 2025':{s:3.2,y:2.9,m:3.1,w:3.4},
+  'Q3 2025':{s:3.5,y:3.0,m:3.3,w:3.6},
+  'Q4 2025':{s:3.5,y:3.1,m:3.4,w:3.7},
+};
+const PERIODS = ['Q3 2024','Q4 2024','Q1 2025','Q2 2025','Q3 2025','Q4 2025','Q1 2026'];
+
+// ── HELPERS ─────────────────────────────────────────────────────
+function avg(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function respAvg(r){ return avg(DIMS.map(d=>r[d])); }
+function calcDimAvgs(){ const o={}; DIMS.forEach(d=>o[d]=avg(responders.map(r=>r[d]))); return o; }
+function calcOverall(){ const da=calcDimAvgs(); return avg(DIMS.map(d=>da[d])); }
+function getTheme(v){ return v>4?'high':v<2.5?'low':'mid'; }
+function badgeClass(v){ return v>=4?'badge-green':v>=3?'badge-blue':'badge-red'; }
+function atmoLabel(v){
+  if(v>4)  return 'Sterk vertrouwensklimaat ☀️';
+  if(v<2.5) return 'Gespannen sfeer 🌧';
+  return 'Neutraal vertrouwensklimaat';
+}
+
+// ── FORM / SLIDER ───────────────────────────────────────────────
+// Track which sliders have been touched (not default 3)
+const touchedSliders = new Set();
+
+function onSlider(el, key, idx){
+  formScores[key][idx] = parseInt(el.value);
+  document.getElementById('sv-'+key+(idx+1)).textContent = el.value;
+  // Track touched
+  touchedSliders.add(key+idx);
+  // Update per-dimension average display
+  const dimAvg = avg(formScores[key]);
+  document.getElementById('davg-'+key).textContent = dimAvg.toFixed(1);
+  // Update progress bar
+  const pct = Math.round((touchedSliders.size / 12) * 100);
+  document.getElementById('progress-bar-fill').style.width = pct+'%';
+  document.getElementById('progress-text').textContent = touchedSliders.size+' / 12 vragen ingevuld';
+  // Overall scene score
+  const s = avg(DIMS.map(d=>avg(formScores[d])));
+  updateScene(s);
+  document.getElementById('scene-slider').value = s;
+  document.getElementById('scene-badge').textContent = s.toFixed(1);
+}
+
+function toggleAnon(){
+  anonMode = document.getElementById('anon-toggle').checked;
+  document.getElementById('anon-banner').style.display = anonMode?'block':'none';
+  document.getElementById('inp-naam').disabled    = anonMode;
+  document.getElementById('inp-niveau').disabled  = anonMode;
+  document.getElementById('inp-naam').placeholder = anonMode?'Anoniem':'Jouw naam';
+  if(anonMode) document.getElementById('inp-naam').value='';
+}
+
+function saveResponse(){
+  const naam    = anonMode?'Anoniem':(document.getElementById('inp-naam').value||'Anoniem');
+  const afd     = document.getElementById('inp-afd').value;
+  const periode = document.getElementById('inp-periode').value;
+  const niveau  = anonMode?'-':document.getElementById('inp-niveau').value;
+  const dimAvgs = {};
+  DIMS.forEach(d => { dimAvgs[d] = avg(formScores[d]); });
+  responders.push({naam,afd,periode,niveau,...dimAvgs});
+  const t = document.getElementById('toast-save');
+  t.textContent = anonMode
+    ? 'Anonieme meting opgeslagen.'
+    : `Meting opgeslagen voor ${naam}.`;
+  t.style.display='block';
+  setTimeout(()=>t.style.display='none',3000);
+  refreshDashboard();
+}
+
+// ── TABS ────────────────────────────────────────────────────────
+function switchTab(id, btn){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  if(btn && btn.classList) btn.classList.add('active');
+  if(id==='trend')     buildTrendCharts();
+  if(id==='dashboard') refreshDashboard();
+}
+
+// ── DASHBOARD ───────────────────────────────────────────────────
+let chartDept=null;
+
+function refreshDashboard(){
+  const da      = calcDimAvgs();
+  const overall = avg(DIMS.map(d=>da[d]));
+  const th      = getTheme(overall);
+
+  // atmosphere banner
+  const banner  = document.getElementById('atm-banner');
+  banner.className = 'atm-banner atm-'+th;
+  document.getElementById('atm-text').textContent =
+    atmoLabel(overall)+' — score '+overall.toFixed(1)+'/5';
+
+  // metrics
+  document.getElementById('m-avg').textContent   = overall.toFixed(1);
+  document.getElementById('m-avg').className     = 'metric-value '+(th==='high'?'c-green':th==='low'?'c-red':'c-amber');
+  document.getElementById('m-count').textContent = responders.length;
+
+  const sorted = DIMS.map((d,i)=>({d,v:da[d],l:DLABELS[i]})).sort((a,b)=>b.v-a.v);
+  document.getElementById('m-strong').textContent    = sorted[0].l;
+  document.getElementById('m-strong-sub').textContent= sorted[0].v.toFixed(1);
+  document.getElementById('m-weak').textContent      = sorted[sorted.length-1].l;
+  document.getElementById('m-weak-sub').textContent  = sorted[sorted.length-1].v.toFixed(1);
+
+  // dim bars
+  const dc = document.getElementById('dim-bars-container'); dc.innerHTML='';
+  DIMS.forEach((d,i)=>{
+    const v=da[d]; const pct=Math.round(((v-1)/4)*100);
+    const col = v>=4?'#16a34a':v>=3?'#2563eb':'#d97706';
+    dc.innerHTML+=`<div class="dim-bar-row">
+      <div class="dim-bar-header">
+        <span class="dim-bar-label">${DLABELS[i]}</span>
+        <span class="dim-bar-val">${v.toFixed(1)}</span>
+      </div>
+      <div class="dim-bar-track"><div class="dim-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+    </div>`;
+  });
+
+  // ABI bars
+  const abiMap = {
+    'Ability':    ['s','m'],
+    'Benevolence':['w','m'],
+    'Integrity':  ['y','s']
+  };
+  const abiColors = {'Ability':'#2563eb','Benevolence':'#9333ea','Integrity':'#16a34a'};
+  const ac = document.getElementById('abi-bars-container'); ac.innerHTML='';
+  Object.keys(abiMap).forEach(abi=>{
+    const v = avg(abiMap[abi].map(d=>da[d]));
+    const pct = Math.round(((v-1)/4)*100);
+    ac.innerHTML+=`<div class="abi-row">
+      <span class="abi-label">${abi}</span>
+      <div class="abi-track"><div class="abi-fill" style="width:${pct}%;background:${abiColors[abi]}"></div></div>
+      <span class="abi-pct">${pct}%</span>
+    </div>`;
+  });
+
+  // dept chart
+  const depts    = [...new Set(responders.map(r=>r.afd))];
+  const deptAvgs = depts.map(dep=>avg(responders.filter(r=>r.afd===dep).map(r=>respAvg(r))));
+  const deptCols = deptAvgs.map(v=>v>=4?'#16a34a':v>=3?'#2563eb':'#d97706');
+  if(chartDept) chartDept.destroy();
+  chartDept = new Chart(document.getElementById('chart-dept'),{
+    type:'bar',
+    data:{labels:depts,datasets:[{data:deptAvgs,backgroundColor:deptCols,borderRadius:4,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{min:0,max:5,ticks:{color:'#999',font:{size:11}},grid:{color:'rgba(0,0,0,0.05)'}},
+        x:{ticks:{color:'#999',font:{size:11}},grid:{display:false}}
+      }
+    }
+  });
+
+  // respondent table
+  const tbody = document.getElementById('resp-tbody'); tbody.innerHTML='';
+  [...responders].reverse().forEach(r=>{
+    const rv=respAvg(r); const bc=badgeClass(rv);
+    const atm=rv>4?'Hoog':rv<2.5?'Laag':'Neutraal';
+    tbody.innerHTML+=`<tr>
+      <td>${r.naam}</td><td>${r.afd}</td><td>${r.periode}</td>
+      <td style="font-weight:500">${rv.toFixed(1)}</td>
+      <td><span class="badge ${bc}">${atm}</span></td>
+    </tr>`;
+  });
+
+  // sync scene
+  updateScene(overall);
+  document.getElementById('scene-slider').value = overall;
+  document.getElementById('scene-badge').textContent = overall.toFixed(1);
+}
+
+// ── TREND CHARTS ────────────────────────────────────────────────
+let chartTrend=null, chartAbiTrend=null;
+
+function buildTrendCharts(){
+  const cur = calcDimAvgs();
+  const allPeriods = PERIODS;
+  const datasets = DIMS.map((d,i)=>({
+    label:DLABELS[i],
+    data:allPeriods.map(p=>TREND_HIST[p]?TREND_HIST[p][d]:cur[d]),
+    borderColor:DCOLORS[i], backgroundColor:DCOLORS[i]+'20',
+    tension:0.4, pointRadius:4, pointBackgroundColor:DCOLORS[i],
+    fill:false, borderWidth:2,
+  }));
+
+  if(chartTrend) chartTrend.destroy();
+  chartTrend = new Chart(document.getElementById('chart-trend'),{
+    type:'line', data:{labels:allPeriods, datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{min:1,max:5,ticks:{color:'#999',font:{size:11}},grid:{color:'rgba(0,0,0,0.05)'}},
+        x:{ticks:{color:'#999',font:{size:11},maxRotation:45,autoSkip:false},grid:{display:false}}
+      }
+    }
+  });
+
+  const abiMap = {'Ability':['s','m'],'Benevolence':['w','m'],'Integrity':['y','s']};
+  const abiCols= ['#2563eb','#9333ea','#16a34a'];
+  const abiDS  = Object.keys(abiMap).map((abi,i)=>({
+    label:abi,
+    data:allPeriods.map(p=>{
+      const src=TREND_HIST[p]||cur;
+      return avg(abiMap[abi].map(d=>src[d]));
+    }),
+    borderColor:abiCols[i], backgroundColor:abiCols[i]+'18',
+    tension:0.4, pointRadius:3, fill:true, borderWidth:2,
+  }));
+
+  if(chartAbiTrend) chartAbiTrend.destroy();
+  chartAbiTrend = new Chart(document.getElementById('chart-abi-trend'),{
+    type:'line', data:{labels:allPeriods, datasets:abiDS},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{min:1,max:5,ticks:{color:'#999',font:{size:11}},grid:{color:'rgba(0,0,0,0.05)'}},
+        x:{ticks:{color:'#999',font:{size:11},maxRotation:45,autoSkip:false},grid:{display:false}}
+      }
+    }
+  });
+
+  // legend
+  const leg = document.getElementById('trend-legend'); leg.innerHTML='';
+  DIMS.forEach((d,i)=>{
+    leg.innerHTML+=`<span style="display:flex;align-items:center;gap:4px">
+      <span style="width:10px;height:10px;border-radius:2px;background:${DCOLORS[i]};display:inline-block"></span>
+      ${DLABELS[i]}</span>`;
+  });
+}
+
+// ── EMAIL / UITNODIGEN ──────────────────────────────────────────
+function addEmail(){
+  const n=document.getElementById('new-name').value.trim();
+  const e=document.getElementById('new-email').value.trim();
+  if(!e) return;
+  emailList.push({name:n||e,email:e,status:'draft',filled:false});
+  document.getElementById('new-name').value='';
+  document.getElementById('new-email').value='';
+  renderEmailListUI();
+  refreshStatus();
+}
+function removeEmail(i){
+  emailList.splice(i,1);
+  renderEmailListUI();
+  refreshStatus();
+}
+function renderEmailListUI(){
+  const el=document.getElementById('email-list-uitnodig');
+  if(!emailList.length){ el.innerHTML='<div style="font-size:13px;color:var(--text-muted);padding:12px">Nog geen ontvangers.</div>'; return; }
+  el.innerHTML=emailList.map((r,i)=>{
+    const ini=r.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+    const stL=r.status==='sent'?'<span style="font-size:11px;font-weight:500;color:#16a34a">Verzonden</span>':
+               r.status==='pending'?'<span style="font-size:11px;font-weight:500;color:#d97706">Onderweg</span>':
+               '<span style="font-size:11px;color:var(--text-muted)">Concept</span>';
+    return `<div class="email-item">
+      <div class="email-avatar">${ini}</div>
+      <div class="email-info"><div class="email-name">${r.name}</div><div class="email-addr">${r.email}</div></div>
+      ${stL}
+      <button class="email-del" onclick="removeEmail(${i})">×</button>
+    </div>`;
+  }).join('');
+}
+function sendAllEmails(){
+  emailList.forEach(r=>{ if(r.status==='draft') r.status='pending'; });
+  renderEmailListUI(); refreshStatus();
+  const t=document.getElementById('toast-send');
+  const p=emailList.filter(r=>r.status==='pending').length;
+  t.textContent=`${p} uitnodiging${p!==1?'en':''} verzonden.`;
+  t.style.display='block';
+  setTimeout(()=>{
+    emailList.forEach(r=>{ if(r.status==='pending') r.status='sent'; });
+    renderEmailListUI(); refreshStatus();
+    t.style.display='none';
+  },1800);
+}
+function refreshStatus(){
+  const total=emailList.filter(r=>r.status!=='draft').length;
+  const done =emailList.filter(r=>r.filled).length;
+  const rate =total?Math.round((done/total)*100):0;
+  document.getElementById('st-total').textContent=total;
+  document.getElementById('st-done').textContent=done;
+  document.getElementById('st-rate').textContent=rate+'%';
+  document.getElementById('prog-fill').style.width=rate+'%';
+  document.getElementById('prog-label').textContent=`${done} van ${total}`;
+  document.getElementById('prog-pct').textContent=rate+'%';
+  const sl=document.getElementById('status-list');
+  sl.innerHTML=emailList.map((r,i)=>{
+    const ini=r.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+    const fil=r.filled
+      ?'<span style="font-size:11px;font-weight:500;color:#16a34a">Ingevuld</span>'
+      :'<span style="font-size:11px;font-weight:500;color:#d97706">Openstaand</span>';
+    return `<div class="email-item">
+      <div class="email-avatar" style="${r.filled?'background:#dcfce7;color:#14532d':''}">${ini}</div>
+      <div class="email-info"><div class="email-name">${r.name}</div><div class="email-addr">${r.email}</div></div>
+      ${fil}
+    </div>`;
+  }).join('') || '<div style="font-size:13px;color:var(--text-muted);padding:12px">Nog geen ontvangers.</div>';
+}
+function sendReminders(){
+  const open=emailList.filter(r=>!r.filled&&r.status==='sent');
+  const t=document.getElementById('toast-remind');
+  t.textContent=open.length?`Herinnering verstuurd naar ${open.length} ontvanger${open.length!==1?'s':''}.`:'Iedereen heeft al ingevuld.';
+  t.style.display='block';
+  setTimeout(()=>t.style.display='none',3000);
+}
+function updatePreview(){
+  const org=document.getElementById('org-naam').value||'Jouw organisatie';
+  const afz=document.getElementById('org-afzender').value||'HR-afdeling';
+  const fa =document.getElementById('force-anon').checked;
+  const per=document.getElementById('inp-periode').value;
+  ['pv-org','pv-org2'].forEach(id=>document.getElementById(id).textContent=org);
+  ['pv-afzender','pv-afzender2'].forEach(id=>document.getElementById(id).textContent=afz);
+  document.getElementById('pv-from').textContent=afz;
+  document.getElementById('pv-periode').textContent=per;
+  document.getElementById('pv-anon-note').style.display=fa?'block':'none';
+  document.getElementById('share-link').textContent=
+    `https://vertrouwensmeter.app/invullen?org=${org.toLowerCase().replace(/\s/g,'-')}&anon=${fa?1:0}&periode=${per.replace(' ','-')}`;
+}
+function copyLink(){
+  navigator.clipboard.writeText(document.getElementById('share-link').textContent).catch(()=>{});
+  const b=event.target; b.textContent='Gekopieerd!';
+  setTimeout(()=>b.textContent='Kopieer',1500);
+}
+
+// ── EXPORT ──────────────────────────────────────────────────────
+function exportCSV(){
+  const hdr=['Naam','Afdeling','Periode','Niveau','Toekomst','Systemen','Management','Medewerkers','Gemiddelde'];
+  const rows=responders.map(r=>[r.naam,r.afd,r.periode,r.niveau,r.s,r.y,r.m,r.w,respAvg(r).toFixed(2)]);
+  const csv=[hdr,...rows].map(r=>r.join(',')).join('\n');
+  dl('vertrouwensmeter_data.csv',csv,'text/csv');
+}
+function exportTXT(){
+  const da=calcDimAvgs(); const ov=calcOverall();
+  let t=`VERTROUWENSMETER — ORGANISATIERAPPORT\n${'='.repeat(44)}\n\n`;
+  t+=`Datum: ${new Date().toLocaleDateString('nl-NL')}\n`;
+  t+=`Respondenten: ${responders.length}\nGemiddelde score: ${ov.toFixed(2)}/5\n`;
+  t+=`Sfeer: ${atmoLabel(ov)}\n\nSCORES PER DIMENSIE\n${'-'.repeat(30)}\n`;
+  DIMS.forEach((d,i)=>t+=`${DLABELS[i]}: ${da[d].toFixed(2)}\n`);
+  t+=`\nABI-VERDELING\n${'-'.repeat(30)}\n`;
+  t+=`Ability     (Toekomst + Management): ${avg([da.s,da.m]).toFixed(2)}\n`;
+  t+=`Benevolence (Medewerkers + Management): ${avg([da.w,da.m]).toFixed(2)}\n`;
+  t+=`Integrity   (Systemen + Toekomst): ${avg([da.y,da.s]).toFixed(2)}\n`;
+  dl('vertrouwensmeter_rapport.txt',t,'text/plain');
+}
+function dl(name,content,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type}));
+  a.download=name; a.click();
+}
+
+// ── AI TRIGGERS ─────────────────────────────────────────────────
+function aiFullReport(){
+  const da=calcDimAvgs(); const ov=calcOverall();
+  const depts=[...new Set(responders.map(r=>r.afd))];
+  const dLine=depts.map(dep=>{
+    const v=avg(responders.filter(r=>r.afd===dep).map(r=>respAvg(r)));
+    return `${dep}: ${v.toFixed(2)}`;
+  }).join(', ');
+  alert(`AI-rapport aanvraag:\n\nScore: ${ov.toFixed(2)}/5\nToekomst: ${da.s.toFixed(2)} | Systemen: ${da.y.toFixed(2)} | Management: ${da.m.toFixed(2)} | Medewerkers: ${da.w.toFixed(2)}\nAfdelingen: ${dLine}\n\n(Kopieer dit naar Claude voor een volledig managementrapport op basis van het ABI-model en 7S-raamwerk.)`);
+}
+function aiAnalyseTrend(){
+  alert('Trendanalyse aanvraag:\nPlak de trenddata in Claude en vraag om een analyse van patronen, oorzaken en aanbevelingen op basis van het ABI-model.');
+}
+function aiEmailText(){
+  alert('Vraag Claude: "Schrijf een warme, laagdrempelige uitnodigingstekst voor de Vertrouwensmeter. Benadruk anonimiteit. Max 80 woorden."');
+}
+function aiResponseTips(){
+  alert('Vraag Claude: "Geef 5 praktische tips om medewerkers te motiveren een anonieme enquête in te vullen zonder druk te zetten."');
+}
+
+// ── LIVING OFFICE SCENE ─────────────────────────────────────────
+let rainDrops=[]; let rainRaf=null; let rainTick=0;
+
+function lerpColor(r1,g1,b1,r2,g2,b2,t){
+  return `rgb(${Math.round(lerp(r1,r2,t))},${Math.round(lerp(g1,g2,t))},${Math.round(lerp(b1,b2,t))})`;
+}
+
+function updateScene(score){
+  score = parseFloat(score);
+  const t   = clamp((score-1)/4,0,1);
+  const tHi = clamp((score-3)/2,0,1);
+  const tLo = clamp((3-score)/2,0,1);
+
+  // badge
+  const badge = document.getElementById('scene-badge');
+  badge.textContent = score.toFixed(1);
+  if(score>=4){
+    badge.style.background='#dcfce7'; badge.style.color='#14532d';
+  } else if(score<=2.5){
+    badge.style.background='#fee2e2'; badge.style.color='#7f1d1d';
+  } else {
+    badge.style.background='#fef9c3'; badge.style.color='#713f12';
+  }
+
+  // wall colour
+  const wall = score>=3
+    ? lerpColor(245,240,232, 255,248,225, tHi)
+    : lerpColor(245,240,232, 210,215,228, tLo);
+  document.getElementById('sv-wall').setAttribute('fill',wall);
+  document.getElementById('scene-pane').style.background = wall;
+
+  // sky colour
+  const sky = score>=3
+    ? lerpColor(135,180,210, 135,206,235, tHi)
+    : lerpColor(135,180,210, 80,90,110,   tLo);
+  document.getElementById('sv-wl').setAttribute('fill',sky);
+  document.getElementById('sv-wr').setAttribute('fill',sky);
+
+  // sun / clouds
+  document.getElementById('sv-sun').setAttribute('opacity', tHi.toFixed(2));
+  document.getElementById('sv-clouds').setAttribute('opacity', tLo.toFixed(2));
+
+  // floor
+  const floor = score>=3
+    ? lerpColor(217,201,168, 230,215,160, tHi)
+    : lerpColor(217,201,168, 190,195,210, tLo);
+  document.querySelector('#office-svg line').setAttribute('stroke', score<2.5?'#9aa0b0':'#b8a882');
+
+  // ceiling light flicker
+  const light=document.getElementById('sv-light');
+  const glow =document.getElementById('sv-glow');
+  light.style.animation = score<=2.5?'flicker 4s infinite':'';
+  glow.style.animation  = score<=2.5?'flicker 4s 0.3s infinite':'';
+
+  // monitors
+  const monCol = score>3.5?'#1a5fb4':'#2c3240';
+  ['sv-mon1','sv-mon2','sv-mon3'].forEach(id=>document.getElementById(id).setAttribute('fill',monCol));
+
+  // faces & expressions
+  setFaces(score);
+
+  // worker animations
+  setWorkerAnim(score);
+
+  // manager
+  setManagerAnim(score);
+
+  // plant colour
+  const plantCol = score>=3.5?'#2d7a2d':'#4a6a4a';
+  const plant2   = score>=3.5?'#3a9a3a':'#4a6a4a';
+  document.getElementById('sv-plant-main').setAttribute('fill',plantCol);
+  document.getElementById('sv-plant-l').setAttribute('fill',plant2);
+  document.getElementById('sv-plant-r').setAttribute('fill',plant2);
+
+  // rain
+  if(score<=2.5){
+    if(!rainRaf){ buildRain(); startRain(); }
+  } else {
+    stopRain();
+  }
+
+  // caption
+  const cap = document.getElementById('scene-caption');
+  if(score>=4.2){
+    cap.textContent='Zonnig kantoor: blije medewerkers werken met energie, managers lopen vriendelijk rond.';
+    cap.style.color='#15803d';
+  } else if(score>=3){
+    cap.textContent='Rustig kantoor: neutraal klimaat, werk gaat zijn gang.';
+    cap.style.color='#92400e';
+  } else if(score>=2){
+    cap.textContent='Gespannen sfeer: medewerkers hangen er bij, manager controleert met klembord.';
+    cap.style.color='#991b1b';
+  } else {
+    cap.textContent='Grimmig kantoor: regen, flikkerende lampen, niemand vertrouwt niemand.';
+    cap.style.color='#7f1d1d';
+  }
+}
+
+function setFaces(score){
+  const workers=[
+    {id:'sv-w1m',x1:84,cx:88,x2:92},
+    {id:'sv-w2m',x1:176,cx:180,x2:184},
+    {id:'sv-w3m',x1:271,cx:275,x2:279},
+  ];
+  workers.forEach(w=>{
+    const el=document.getElementById(w.id);
+    if(score>=4)
+      el.setAttribute('d',`M${w.x1} 177 Q${w.cx} 182 ${w.x2} 177`);
+    else if(score<2.5)
+      el.setAttribute('d',`M${w.x1} 179 Q${w.cx} 175 ${w.x2} 179`);
+    else
+      el.setAttribute('d',`M${w.x1} 178 Q${w.cx} 180 ${w.x2} 178`);
+  });
+  const mm=document.getElementById('sv-mgrm');
+  if(score>=4)      mm.setAttribute('d','M136 220 Q140 224 144 220');
+  else if(score<2.5) mm.setAttribute('d','M136 223 Q140 219 144 223');
+  else               mm.setAttribute('d','M136 221 Q140 223 144 221');
+}
+
+function setWorkerAnim(score){
+  ['sv-w1','sv-w2','sv-w3'].forEach((id,i)=>{
+    const el=document.getElementById(id);
+    const delays=['0s','0.4s','0.8s'];
+    if(score>=3.8)
+      el.style.animation=`bob 1.2s ${delays[i]} ease-in-out infinite`;
+    else if(score<=2.5)
+      el.style.animation=`slump ${4+i}s ease-in-out infinite`;
+    else
+      el.style.animation='';
+  });
+}
+
+function setManagerAnim(score){
+  const mgr=document.getElementById('sv-mgr');
+  const clip=document.getElementById('sv-clip');
+  if(score>=3.8){
+    mgr.style.animation='sway 3s ease-in-out infinite';
+    mgr.style.transformOrigin='140px 258px';
+    clip.setAttribute('opacity','0.3');
+  } else if(score<=2.5){
+    mgr.style.animation='scan 2.5s ease-in-out infinite';
+    mgr.style.transformOrigin='140px 240px';
+    clip.setAttribute('opacity','1');
+  } else {
+    mgr.style.animation='';
+    clip.setAttribute('opacity','0.6');
+  }
+}
+
+function buildRain(){
+  const gr=document.getElementById('sv-rain');
+  gr.innerHTML='';
+  rainDrops=[];
+  // left window
+  for(let i=0;i<12;i++){
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    const x=20+Math.random()*66;
+    const y=32+Math.random()*40;
+    l.setAttribute('x1',x); l.setAttribute('y1',y);
+    l.setAttribute('x2',x+1.5); l.setAttribute('y2',y+9);
+    l.setAttribute('stroke','#7090c0'); l.setAttribute('stroke-width','0.9'); l.setAttribute('opacity','0');
+    gr.appendChild(l);
+    rainDrops.push({el:l,x,y,sp:1.5+Math.random()*1.5,dl:Math.random()*60,maxY:90});
+  }
+  // right window
+  for(let i=0;i<18;i++){
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    const x=260+Math.random()*84;
+    const y=26+Math.random()*50;
+    l.setAttribute('x1',x); l.setAttribute('y1',y);
+    l.setAttribute('x2',x+1.5); l.setAttribute('y2',y+10);
+    l.setAttribute('stroke','#7090c0'); l.setAttribute('stroke-width','1'); l.setAttribute('opacity','0');
+    gr.appendChild(l);
+    rainDrops.push({el:l,x,y,sp:1.8+Math.random()*2,dl:Math.random()*60,maxY:102,startY:26});
+  }
+}
+function startRain(){
+  rainTick=0;
+  function loop(){
+    rainTick++;
+    rainDrops.forEach(d=>{
+      if(rainTick<d.dl) return;
+      d.y+=d.sp;
+      if(d.y>d.maxY) d.y=(d.startY||32)+Math.random()*15;
+      d.el.setAttribute('y1',d.y);
+      d.el.setAttribute('y2',d.y+10);
+      d.el.setAttribute('opacity',0.4+Math.random()*0.45);
+    });
+    rainRaf=requestAnimationFrame(loop);
+  }
+  loop();
+}
+function stopRain(){
+  if(rainRaf){ cancelAnimationFrame(rainRaf); rainRaf=null; }
+  document.getElementById('sv-rain').innerHTML='';
+  rainDrops=[];
+}
+
+// ── INIT ────────────────────────────────────────────────────────
+renderEmailListUI();
+refreshStatus();
+refreshDashboard();
+updateScene(3);
+updatePreview();
+
+document.getElementById('org-naam').addEventListener('input',updatePreview);
+document.getElementById('org-afzender').addEventListener('input',updatePreview);
+</script>
+</body>
+</html>
